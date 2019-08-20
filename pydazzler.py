@@ -5,7 +5,7 @@ import json
 import matplotlib.pyplot as plt
 import scipy.interpolate as interpolate
 import scipy.integrate as integrate
-from scipy.optimize import minimize
+from scipy.optimize import minimize_scalar
 def omega2lam(w,S_w,axis=0,lAxis=None):
     L = 2*np.pi*299.792/w     
     S_wSize = np.shape(S_w)
@@ -66,7 +66,7 @@ def normalise(I):
     return I
 
 
-class dazzler( object ):
+class dazzler( object ): # STYLE: (object) hasn't been needed since Python 3.0
     def __init__( self ):
         self.dazSettings = {}
         self.lam  = []
@@ -76,28 +76,35 @@ class dazzler( object ):
         self.phaseLoad=0
     
 
-    def loadFile(self,filepath):
+    def loadFile(self,filepath): # shouldn't this be in __init__?
+        """Loads settings from a Dazzler wave file.
+        
+        Arguments:
+         filepath: a string giving a path to a Dazzler wave file
+        """
+
         dazSettings = {}
         lam  = []
         phi_lam = []
-        fid = open(filepath)
-        lCont=1
-        phaseLoad=0
+        fid = open(filepath) # STYLE: use a with or a try finally
+        lCont=1 # STYLE: this could be True
+        phaseLoad=0 # STYLE: and this could be False
 
-        while lCont==1:
+        while lCont==1: # STYLE: this could be "while lCont:" (even if lCont is an int)
             line = next(fid)
             if line.rfind('!The following is ONLY a reminder of your settings when the wave was saved.')>=0:
-                lCont=0
-            elif line.rfind('=')>0:
+                # ^STYLE^: try "if '!The ... was saved.' in line:" instead
+                lCont=0 # STYLE: you can use False here, or break explicitly
+            elif line.rfind('=')>0: # STYLE: why rfind and not find?
             
                 command, value = line.strip().split('=', 1)
                 dazSettings[command] = np.float64(value.strip())
             elif line.rfind('#phase')>=0:
                 
                 phaseLoad =1
-            elif phaseLoad==1:
+            elif phaseLoad==1: # STYLE: again, the "==1" is redundant
                 if line.rfind('\t')>0:
-                    [a,b] =line.strip().split('\t')
+                    [a,b] =line.strip().split('\t') # STYLE: get rid of the []; I didn't even know Python allowed them there
                     lam.append(np.float64(a))
                     phi_lam.append(np.float64(b))
                 else:
@@ -109,7 +116,7 @@ class dazzler( object ):
             phi_lam = np.array(phi_lam)
         else:
             lam = np.linspace(700,900,num=self.N)
-            phi_lam = 0
+            phi_lam = 0 # shouldn't this be np.zeros_like(lam)?
         self.phaseLoad=phaseLoad    
         self.dazSettings = dazSettings
         self.lam  = lam
@@ -164,11 +171,10 @@ class dazzler( object ):
         return S_transErr
 
     def optimiseDelay(self,l,S_l):
-        x0 = self.dazSettings['delay']
         def rejFun(delay):
             self.dazSettings['delay'] = delay
             return self.calcTransErr(l,S_l)
-        res = minimize(rejFun,x0,method='nelder-mead',options={'xtol': 100, 'disp': False})
+        res = minimize_scalar(rejFun, [0, self.xtalWidth], options={'xtol': 0.02, 'disp': False})
         self.dazSettings['delay'] = res.x
         return res.x, res.fun
 
