@@ -6,8 +6,9 @@ import scipy.io as sio
 
 ## Should make an object to store the calibration info and interpolation functions
 
-class screenCalibration(calFilePath):
-    __init__
+# class screenCalibration:
+#     def __init__(self,calFilePath):
+
 
 def specCalFromAngle(x,bAng,calFilePath):
     calData = sio.loadmat(calFilePath)

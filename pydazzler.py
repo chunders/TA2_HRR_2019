@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import re
 import pandas as pd
@@ -65,67 +66,82 @@ def normalise(I):
     I = I /np.max(np.abs(I))
     return I
 
+def loadDazzlerWavesFile(filepath):
+    dazSettings = {}
+    lam  = []
+    phi_lam = []
+    lCont=True 
+    phaseLoad=False 
+    with open(filepath) as fid: 
+        while lCont:
+            line = next(fid)
+            if '!The following is ONLY a reminder of your settings when the wave was saved.' in line:
+                lCont=False 
+            elif '=' in line:
+                command, value = line.strip().split('=', 1)
+                dazSettings[command] = np.float64(value.strip())
+            elif '#phase' in line:
+                phaseLoad =True
+            elif phaseLoad: 
+                if '\t' in line:
+                    a,b =line.strip().split('\t') 
+                    lam.append(np.float64(a))
+                    phi_lam.append(np.float64(b))
+                else:
+                    lCont=False
+            
+    if phaseLoad:
+        lam= np.array(lam)
+        phi_lam = np.array(phi_lam)
+    else:
+        lam = np.linspace(700,900,num=self.N)
+        phi_lam = np.zeros_like(lam)
+    
+    return phaseLoad,dazSettings,lam,phi_lam
 
-class dazzler( object ): # STYLE: (object) hasn't been needed since Python 3.0
-    def __init__( self ):
+class Dazzler: 
+    """ Class which takes a dazzler wave.txt file and calculates behaviour
+    Arguments:
+        filepath: the path the waves.txt file
+    """
+    def __init__( self, filepath='' ):
         self.dazSettings = {}
         self.lam  = []
         self.phi_lam = []
         self.N=2**16
         self.xtalWidth = 8500
-        self.phaseLoad=0
-    
+        self.phaseLoad=False
+        
+        self.loadFile(filepath)
 
-    def loadFile(self,filepath): # shouldn't this be in __init__?
+    def loadFile(self,filepath): 
         """Loads settings from a Dazzler wave file.
         
         Arguments:
          filepath: a string giving a path to a Dazzler wave file
         """
 
-        dazSettings = {}
-        lam  = []
-        phi_lam = []
-        fid = open(filepath) # STYLE: use a with or a try finally
-        lCont=1 # STYLE: this could be True
-        phaseLoad=0 # STYLE: and this could be False
+        if not os.path.isfile(filepath):
+            print("No valid file path provided, not loading anything")
+            return
 
-        while lCont==1: # STYLE: this could be "while lCont:" (even if lCont is an int)
-            line = next(fid)
-            if line.rfind('!The following is ONLY a reminder of your settings when the wave was saved.')>=0:
-                # ^STYLE^: try "if '!The ... was saved.' in line:" instead
-                lCont=0 # STYLE: you can use False here, or break explicitly
-            elif line.rfind('=')>0: # STYLE: why rfind and not find?
-            
-                command, value = line.strip().split('=', 1)
-                dazSettings[command] = np.float64(value.strip())
-            elif line.rfind('#phase')>=0:
-                
-                phaseLoad =1
-            elif phaseLoad==1: # STYLE: again, the "==1" is redundant
-                if line.rfind('\t')>0:
-                    [a,b] =line.strip().split('\t') # STYLE: get rid of the []; I didn't even know Python allowed them there
-                    lam.append(np.float64(a))
-                    phi_lam.append(np.float64(b))
-                else:
-                    lCont=0
-                
-        fid.close()
-        if phaseLoad==1:
-            lam= np.array(lam)
-            phi_lam = np.array(phi_lam)
-        else:
-            lam = np.linspace(700,900,num=self.N)
-            phi_lam = 0 # shouldn't this be np.zeros_like(lam)?
-        self.phaseLoad=phaseLoad    
-        self.dazSettings = dazSettings
-        self.lam  = lam
-        self.phi_lam = phi_lam
+        self.phaseLoad,self.dazSettings,self.lam,self.phi_lam = loadDazzlerWavesFile(filepath)
 
     def showParameters(self):
+        """Prints currently loaded dazzler settings
+        """
         print(json.dumps(self.dazSettings, indent=2, sort_keys=False))
 
     def calcWave(self):
+        """Calculates the acoustic wave of the dazzler using currently loaded settings
+
+        Returns: 
+            lam: the wavelength axis in nm
+            S_lambda_filt: the spectrum after clipping by the crystal width
+            S_lambda: in input spectrum
+            t: temporal axis in fs (time for propgation through the crystal)
+            E_t: Temporal field of the dazzler
+        """
         dazSettings = self.dazSettings
         lam = self.lam
         phi_lam = self.phi_lam
@@ -151,7 +167,6 @@ class dazzler( object ): # STYLE: (object) hasn't been needed since Python 3.0
         # time axis
         dt = 2*np.pi/(w.max()-w.min())
         t = np.linspace(-N/2*dt,(N/2-1)*dt,num=N)
-                    
        
         E_w_filt = self.applyCrystalClip(w,E_w)
         S_w_filt = np.abs(E_w_filt**2)
@@ -163,14 +178,32 @@ class dazzler( object ): # STYLE: (object) hasn't been needed since Python 3.0
         return lam,S_lambda_filt,S_lambda,t,E_t
 
     def calcTransErr(self,l,S_l):
+        """Calculates the transmission error for a given spectrum
+        Arguments:
+            l: the wavelength axis in nm
+            S_l: in input spectrum
+
+        Returns: 
+            S_transErr: The RMS weighted error between the input and output spectrum
+        """
         (lam,S_lambda_filt,S_lambda,t,E_t) = self.calcWave()
         S_l_fun = interpolate.interp1d(l,S_l,kind='linear',bounds_error=False, fill_value=0)
         S_l_pulse = S_l_fun(lam)
-        #S_trans = np.sum(S_l_pulse*S_lambda_filt)/(np.sum(S_l_pulse*S_lambda))
+        
         S_transErr = np.sqrt(np.sum(((S_lambda_filt-S_lambda)**2)*S_l_pulse)/np.sum(S_l_pulse))
         return S_transErr
 
     def optimiseDelay(self,l,S_l):
+        """Finds the optimal delay for minimising the transmitted spectrum error 
+        and sets the current delay to this value
+        Arguments:
+            l: the wavelength axis in nm
+            S_l: in input spectrum
+
+        Returns: 
+            delay: The optimised delay
+            transErr: the transmitted spectrum error for this delay
+        """
         def rejFun(delay):
             self.dazSettings['delay'] = delay
             return self.calcTransErr(l,S_l)
@@ -179,9 +212,13 @@ class dazzler( object ): # STYLE: (object) hasn't been needed since Python 3.0
         return res.x, res.fun
 
     def plotWaves(self,l=None,S_l=None):
+        """Calculates the transmission error for a given spectrum
+        Optional keword arguments:
+            l: the wavelength axis in nm
+            S_l: in input spectrum
+        """
         xtalWidth=self.xtalWidth
         # set up figure
-        #fh = plt.figure()
         fh, (ax1, ax2) = plt.subplots(1, 2, sharey=False)
         (lam,S_lambda_filt,S_lambda,t,E_t) = self.calcWave()
         ax1.plot(t,normalise(np.real(E_t)))
@@ -202,6 +239,14 @@ class dazzler( object ): # STYLE: (object) hasn't been needed since Python 3.0
         ax2.set_xlim((650, 950))
     
     def calcOpticalPulse(self,PulseObj):
+        """Calculates the optical pulse using a given LaserPulse object
+        Arguments:
+            PulseObj: a LaserPulse object
+
+        Returns: 
+            t: the temporal axis in fs (-ve is early time)
+            E_t_final: the electric field of the laser 
+        """
         c = 299.792
         N = PulseObj.N
         dazSettings = self.dazSettings
@@ -239,6 +284,15 @@ class dazzler( object ): # STYLE: (object) hasn't been needed since Python 3.0
 
     
     def gatherPhi(self,w,w_0,dazSettings):
+        """ calculates the spectral phase in frequency space, using the polynomial terms and tabulated phase values
+        Arguments:
+            w: the frequency axis in rad fs^-1
+            w_0: the central frequency for the polynomial terms in rad fs^-1
+            dazSettings: the current dazzler settigns dictionary
+
+        Returns: 
+            phi_w: the spectral phase on the input frequency axis
+        """
         c = 299.792
         phaseLoad = self.phaseLoad
         lam = self.lam
@@ -259,6 +313,14 @@ class dazzler( object ): # STYLE: (object) hasn't been needed since Python 3.0
         return phi_w
 
     def applyCrystalClip(self,w,E_w):
+        """ applies the clipping of the limit temporal window of the acoustic crystal in the dazzler
+        Arguments:
+            w: the frequency axis in rad fs^-1
+            E_w: the dazzler field
+
+        Returns: 
+            E_w_filt: the frequency clipped dazzler field
+        """
         N = np.size(w)
         # convert to time domain
         E_t = E_w2E_t(E_w)
@@ -273,6 +335,12 @@ class dazzler( object ): # STYLE: (object) hasn't been needed since Python 3.0
         return E_w_filt
 
     def spectralAmp(self):
+        """ calculates the spectral amplitude of the dazzler
+        
+        Returns: 
+            w: the frequency axis in rad fs^-1
+            Amp_w: the dazzler spectral amplitude
+        """
         dazSettings = self.dazSettings
         lam = self.lam
         N = self.N
@@ -300,8 +368,15 @@ class dazzler( object ): # STYLE: (object) hasn't been needed since Python 3.0
         return w,Amp_w
     
 
-class laserPulse( object ):
-    def __init__( self ):
+class LaserPulse:
+    """ Class which contains a laser pulse definition 
+    and also takes a dazzler wave.txt file which was active when that pulse was defined
+    Used in combination with the dazzler object to calculate the effect of changing dazzler parameters
+    on the laser pulse
+    Arguments:
+        filepath: the path the waves.txt file
+    """
+    def __init__( self ,filepath=''):
         self.dazSettings = {}
         self.lam  = []
         self.phi_lam = []
@@ -311,49 +386,26 @@ class laserPulse( object ):
         self.energy = 1
         self.w = []
         self.E_w = []
-    
+        self.phaseLoad=False
+        self.loadFile(filepath)
 
-    def loadFile(self,filepath):
-        dazSettings = {}
-        lam  = []
-        phi_lam = []
-        fid = open(filepath)
-        lCont=1
-        phaseLoad=0
 
-        while lCont==1:
-            line = next(fid)
-            if line.rfind('!The following is ONLY a reminder of your settings when the wave was saved.')>=0:
-                lCont=0
-            elif line.rfind('=')>0:
-            
-                command, value = line.strip().split('=', 1)
-                dazSettings[command] = np.float64(value.strip())
-            elif line.rfind('#phase')>=0:
-                
-                phaseLoad =1
-            elif phaseLoad==1:
-                if line.rfind('\t')>0:
-                    [a,b] =line.strip().split('\t')
-                    lam.append(np.float64(a))
-                    phi_lam.append(np.float64(b))
-                else:
-                    lCont=0
-                
-        fid.close()
-        if phaseLoad==1:
-            lam= np.array(lam)
-            phi_lam = np.array(phi_lam)
-        else:
-            lam = np.linspace(700,900,num=self.N)
-            phi_lam = 0
-        self.phaseLoad=phaseLoad    
-        self.dazSettings = dazSettings
-        self.lam  = lam
-        self.phi_lam = phi_lam
+    def loadFile(self,filepath): 
+        """Loads settings from a Dazzler wave file.
+        
+        Arguments:
+         filepath: a string giving a path to a Dazzler wave file
+        """
 
+        if not os.path.isfile(filepath):
+            print("No valid file path provided, not loading anything")
+            return
+        
+        self.phaseLoad,self.dazSettings,self.lam,self.phi_lam = loadDazzlerWavesFile(filepath)
 
     def showParameters(self):
+        """Prints currently loaded dazzler settings
+        """
         print(json.dumps(self.dazSettings, indent=2, sort_keys=False))
 
     
