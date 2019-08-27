@@ -92,12 +92,13 @@ class eprofile():
         right = topRight[1]
         self.image = self.image[left:right, bot:top]
         
-    def filtered_max_coor(self, kernelsize = 7, plotting = True):
+    def simplePointing(self, kernelsize = 7, plotting = True):
         """ Filter the 2D array by a kernel, and then return the pixel coordinates
         of the max value. Average the position if multiple are found
         """
         f_image = medfilt2d(self.image, kernelsize)
-        max_coor = np.where(f_image == f_image.max())        
+        max_coor = np.where(f_image == f_image.max())     
+        # These are back to front for some reason
         x_arr = max_coor[1]
         y_arr = max_coor[0]
         if len(x_arr) > 1:
@@ -105,10 +106,22 @@ class eprofile():
             x_arr = [np.average(x_arr)]
             y_arr = [np.average(y_arr)]
         if plotting:
-            plt.imshow(f_image, vmin = self.image.min())
+            plt.imshow(f_image, vmin = self.image.min(), origin='lower')
             plt.plot(x_arr, y_arr, 'rx-')        
             plt.show()
         return x_arr[0], y_arr[0]
+    
+    def gausPointing(self, plotting = True):
+        """ Returns the coordinates of a gaussian beam center
+        Filter the 2D array by a kernel to remove hard hits
+        Fit a guassian
+        """
+        out = self.fit_2DGaus(plotting = plotting)
+        if out[0] is not None:
+            return out[0], out[1]
+        else:
+            return None, None
+        
     
     def twoD_Gaussian(self,xdata_tuple, amplitude, xo, yo, sigma_x, sigma_y, theta, offset):
         """ A 2D gaussian function that works with curvefit
@@ -123,31 +136,32 @@ class eprofile():
                             + c*((y-yo)**2)))                                   
         return g.ravel()
         
-    def fit_2DGaus(self, plotting = True, view_n_std = 4):
+    def fit_2DGaus(self, plotting = True, view_n_std = 6, kernelsize = 7):
         """ Fit a 2D gaussian to the beam profile
         Returns the xo, yo, sigma_x, sigma_y
         """
-        imShape = np.shape(self.image)
+        # Flip the image here so the end result is rotated correctly
+        f_image = medfilt2d(self.image.T, kernelsize)
+        imShape = np.shape(f_image)        
         
-        
-        maxCoors = self.filtered_max_coor(plotting = False)
+        maxCoors = self.simplePointing(plotting = False)
         
         x = np.linspace(0, imShape[0], imShape[0])
         y = np.linspace(0, imShape[1], imShape[1])
         x, y = np.meshgrid(x, y)
         
         #               amplitude, xo, yo 
-        initial_guess = [self.image.max(), maxCoors[1], maxCoors[0],
+        initial_guess = [f_image.max(), maxCoors[0], maxCoors[1],
                          # sigma_x, sigma_y, theta, offset
                          imShape[0]/3, imShape[1]/3, 0, 0]
         try:
-            popt, pcov = curve_fit(self.twoD_Gaussian, (x, y), self.image.T.ravel(), 
+            popt, pcov = curve_fit(self.twoD_Gaussian, (x, y), f_image.T.ravel(), 
                                    p0=initial_guess)
             
             data_fitted = self.twoD_Gaussian((x, y), *popt)
     
             if plotting:
-                plt.pcolormesh(x, y, self.image.T)
+                plt.pcolormesh(x, y, f_image.T, vmin = self.image.min())
                 plt.contour(x, y, data_fitted.reshape(imShape[1], imShape[0]),
                             5, cmap = plt.cm.Spectral)
                 xLims = [popt[1] - view_n_std * popt[3], popt[1] + view_n_std * popt[3]]
@@ -159,8 +173,9 @@ class eprofile():
                     if lim[1] > shape -1:
                         lim[1] = shape - 1
                         
-                plt.xlim(xLims)
-                plt.ylim(yLims)
+                # plt.xlim(xLims)
+                # plt.ylim(yLims)
+                plt.axes().set_aspect('equal')
                 plt.show()
         except RuntimeError:
             print ("The fit has not converged")
@@ -195,11 +210,16 @@ if __name__ == "__main__":
     ep.crop_to_lanex([0, 80], [410, 340])
     
     plt.title("Raw image cropped to lanex")
-    plt.imshow(ep.image, vmax = 33500)
+    plt.imshow(ep.image, vmax = 33500, origin='lower')
     plt.colorbar()
+    plt.axes().set_aspect('equal')
     plt.show()
     
-    x_arr, y_arr = ep.filtered_max_coor(kernelsize=13)
+    x_arr, y_arr = ep.simplePointing(kernelsize=13)
+    print ("Simple pointing", x_arr, y_arr)
+    
+    g_pointing = ep.gausPointing()
+    print ("Gaus pointing", g_pointing)
 
     out = ep.fit_2DGaus()
 
