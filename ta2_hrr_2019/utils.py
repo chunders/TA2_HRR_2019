@@ -1,3 +1,5 @@
+import os
+
 from .paths import DATA_FOLDER
 
 def shots_sorted(files, ext):
