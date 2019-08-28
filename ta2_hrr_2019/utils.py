@@ -1,3 +1,5 @@
+from .paths import DATA_FOLDER
+
 def shots_sorted(files, ext):
     """Sort a list of shot files into numerical order. Selects only a single extension"""
     l = len(ext)
@@ -9,7 +11,7 @@ def shots_sorted(files, ext):
 def setup_mirage_analysis():
     import mirage_analysis
     from mirage_analysis.loader import GCamDataLoader, FallibleGCamDataLoader, ImageDataLoader
-    mirage_analysis.configure(r'E:\Streeter2019\MIRAGE')
+    mirage_analysis.configure(os.path.join(DATA_FOLDER, 'MIRAGE'))
     mirage_analysis.register_data_loader('ESpec', FallibleGCamDataLoader)
     mirage_analysis.register_data_loader('HASOFF', GCamDataLoader)
     mirage_analysis.register_data_loader('HASONF', GCamDataLoader)
