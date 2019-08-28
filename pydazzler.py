@@ -66,7 +66,7 @@ def normalise(I):
     I = I /np.max(np.abs(I))
     return I
 
-def loadDazzlerWavesFile(filepath):
+def loadDazzlerWavesFile(filepath,N):
     dazSettings = {}
     lam  = []
     phi_lam = []
@@ -94,7 +94,7 @@ def loadDazzlerWavesFile(filepath):
         lam= np.array(lam)
         phi_lam = np.array(phi_lam)
     else:
-        lam = np.linspace(700,900,num=self.N)
+        lam = np.linspace(700,900,num=N)
         phi_lam = np.zeros_like(lam)
     
     return phaseLoad,dazSettings,lam,phi_lam
@@ -125,7 +125,7 @@ class Dazzler:
             print("No valid file path provided, not loading anything")
             return
 
-        self.phaseLoad,self.dazSettings,self.lam,self.phi_lam = loadDazzlerWavesFile(filepath)
+        self.phaseLoad,self.dazSettings,self.lam,self.phi_lam = loadDazzlerWavesFile(filepath,self.N)
 
     def showParameters(self):
         """Prints currently loaded dazzler settings
@@ -401,7 +401,7 @@ class LaserPulse:
             print("No valid file path provided, not loading anything")
             return
         
-        self.phaseLoad,self.dazSettings,self.lam,self.phi_lam = loadDazzlerWavesFile(filepath)
+        self.phaseLoad,self.dazSettings,self.lam,self.phi_lam = loadDazzlerWavesFile(filepath,self.N)
 
     def showParameters(self):
         """Prints currently loaded dazzler settings
