@@ -14,22 +14,26 @@ import time
 import csv
 try:
     from imageTransformation import *
-except ValueError:
+except ImportError:
     from ta2_hrr_2019.espec_analysis.imageTransformation import *
 import pkg_resources
+
+import ta2_hrr_2019
 
 
 def getCalibrationFromCSV(runName, DataPath=ta2_hrr_2019.utils.DATA_FOLDER):
     # csv_file = os.path.join(os.path.realpath(__file__), 'calibration.csv')
-    csv_file = pkg_resources.get_resource_filename(__name__, 'calibration.csv')
-    csv_reader = csv.reader(csv_file, delimiter=',')
-    for row in csv_reader:
-        row[0].split("/")
-        if row[0] <= runName:
-            # change it here, depending on how we do it with the calibration information
-            CalibrationFile = row[1]
-        else:
-            break
+    csv_name = pkg_resources.resource_filename(__name__, 'calibration.csv')
+    with open(csv_name) as csv_file:
+        csv_reader = csv.reader(csv_file, delimiter=',')
+        for row in csv_reader:
+            RunDateHere, FileNameHere = row
+            if RunDateHere <= runName:
+                # change it here, depending on how we do it with the calibration information
+                CalibrationFile = FileNameHere
+                print('Found Calibration')
+            else:
+                break
     CalibrationFilePath = os.path.join(*[DataPath, "Calibrations", "HighEspec", CalibrationFile])
     J, W, pts, E, dxoverdE, BckgndImage = constantsDefinitions(CalibrationFilePath)
     return J, W, pts, E, dxoverdE, BckgndImage
@@ -188,6 +192,16 @@ def analysisImages(PathOfImage, Filetype='.tif'):
 
 
 class HighEspec:
+    """
+    Function to load calibration values for the electron spectrometer.
+    function: __init__ takes a run name and the path of the data.
+    returns after initialising:
+    return: BckgndImage  Background image (isnt done coding yet)
+    return:  dxoverdE change the spectrum from a spatial domain into an energy domain
+    return: E energy domain
+    return: pts point for warping the image
+    return: W width of the camera image in [m] (at the moment)
+    """
     def __init__(self, runName, DataPath=ta2_hrr_2019.utils.DATA_FOLDER):
         J, W, pts, E, dxoverdE, BckgndImage = getCalibrationFromCSV(runName, DataPath)
         self.J = J
@@ -197,19 +211,21 @@ class HighEspec:
         self.pts = pts
         self.W = W
 
-    def prepImages(self, rawImageuint16):
+    def SpectrumFromImage(self, rawImageuint16):
         image = rawImageuint16.astype(float)
         WarpedImage, __ = four_point_transform(image, self.pts, self.J)
         WarpedImageWithoutBckgnd = WarpedImage - self.BckgndImage
-        return WarpedImageWithoutBckgnd
+        Spectrum = electronSpectrum(WarpedImages[i], self.dxoverdE)
+        return Spectrum
 
-    def analyseImages(self, WarpedImages):
-        if not isinstance(WarpedImages, list):
-            WarpedImages = [WarpedImages]
-        Spectrum = []
-        for i in range(0, len(WarpedImages)):
-            Spectrum.append(electronSpectrum(WarpedImages[i], self.dxoverdE))
-        return self.E, Spectrum
+    def AverageSpectrum(self, Spectra):
+        if not isinstance(Spectra, list):
+            Spectra = [Spectra]
+        Spectrum = np.zeros(Spectra[0].shape)
+        for i in range(0, len(Spectra)):
+            Spectrum = Spectrum + Spectra[i]
+        Spectrum = Spectrum / len(Spectra)
+        return Spectrum
 
 
 if __name__ == "__main__":
