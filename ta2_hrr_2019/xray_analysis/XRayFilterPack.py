@@ -5,14 +5,22 @@ Created on Mon Jul 29 14:45:56 2019
 XRayFilterPack
 @author: Gruse
 """
+from typing import Tuple, Union
+
 import scipy.io
 import numpy as np
 import matplotlib.pyplot as plt
+from numpy.core.multiarray import ndarray
 from scipy.special import kv
 from scipy.integrate import trapz
 from scipy import optimize
 import time
 from XRayInfrastructure import *
+try:
+    from XRayInfrastructure import *
+except ValueError:
+    from ta2_hrr_2019.xray_analysis.XRayInfrastructure import *
+import pkg_resources
 
 
 def synchrotronFunction(energy, ecrit):
@@ -31,9 +39,27 @@ def numberSpectrum(energy, ecrit):
     return NumberSpectrum
 
 
+"""
 def getPhotonFlux(SettingPath, CameraSettingFile, energy, ecrit, PeakIntensity, TQ):
     File = os.path.join(SettingPath, CameraSettingFile)
     PixelSize, GasCell2Camera, RepRate, Alpha, sigma_Alpha = getCameraSettings(File)
+    Theta2 = (PixelSize/GasCell2Camera)**2*1e6
+    S = numberSpectrum(energy, ecrit)
+    NormFactor = scipy.integrate.trapz(S, energy)
+    Snorm = S/NormFactor
+    Divisor = np.multiply(Snorm, energy)
+    Divisor = np.multiply(Divisor, TQ)
+    Divisor = scipy.integrate.trapz(Divisor, energy)
+    NPhotons = PeakIntensity/(Alpha*Divisor)
+    energy01percent = np.arange(0.9995*ecrit, 1.0005*ecrit, (1.0005*ecrit-0.9995*ecrit)/100)
+    S01percent = numberSpectrum(energy01percent, ecrit)/NormFactor
+    NPhotons01percent = NPhotons*scipy.integrate.trapz(S01percent, energy01percent)
+    NPhotons_01percent_omega_s = NPhotons01percent*RepRate/Theta2
+    return NPhotons, NPhotons01percent, NPhotons_01percent_omega_s
+"""
+
+
+def getPhotonFlux(energy, ecrit, PeakIntensity, TQ, PixelSize, GasCell2Camera, RepRate, Alpha):
     Theta2 = (PixelSize/GasCell2Camera)**2*1e6
     S = numberSpectrum(energy, ecrit)
     NormFactor = scipy.integrate.trapz(S, energy)
@@ -116,22 +142,75 @@ def theoreticalTransmissionSignal(energy, TSQE):
     return theoryValue
 
 
-def xrayAnalysis(ImagePath, Filetype, SettingFile, MaskingName):
+def getCalibrationFromCSV(runName, DataPath=ta2_hrr_2019.utils.DATA_FOLDER):
+    # csv_file = os.path.join(os.path.realpath(__file__), 'calibration.csv')
+    csv_file = pkg_resources.get_resource_filename(__name__, 'calibration.csv')
+    csv_reader = csv.reader(csv_file, delimiter=',')
+    for row in csv_reader:
+        row[0].split("/")
+        if row[0] <= runName:
+            # change it here, depending on how we do it with the calibration information
+            CalibrationFile = row[1]
+        else:
+            break
+    SettingPath = os.path.join(*[DataPath, "Calibrations", "XRay", CalibrationFile])
+    return SettingPath
+
+
+class XRay:
+    def __init__(self, runName, DataPath=ta2_hrr_2019.utils.DATA_FOLDER):
+        self.SettingPath = getCalibrationFromCSV(runName, DataPath)
+        energy, T, FilterNames, MaskHere, PixelSize, GasCell2Camera, RepRate, Alpha, sigma_Alpha = \
+            getRequiredCalibration(self.SettingPath)
+        self.energy = energy
+        self.T = T
+        self.FilterNames = FilterNames
+        self.MaskHere = MaskHere
+        self.PixelSize = PixelSize
+        self.GasCell2Camera = GasCell2Camera
+        self.RepRate = RepRate
+        self.Alpha = Alpha
+        self.sigma_Alpha = sigma_Alpha
+
+    def prepImages(self, image):
+        image = image.astype(float)
+        AverageValues, PeakIntensity = getXRaySignal(image, self.MaskHere, self.FilterNames)
+        return AverageValues, PeakIntensity
+
+    def analyseImages(self, AverageValuesList, PeakIntensityList):
+        if not isinstance(AverageValuesList, list):
+            AverageValuesList = [AverageValuesList]
+            PeakIntensityList = [PeakIntensityList]
+        AverageValues = np.zeros(AverageValuesList[0].shape)
+        PeakIntensity = 0
+        # outter loop through all the filters
+        for j in range(0, len(AverageValuesList[0])):
+            # inner loop going through all the images
+            for i in range(0, len(AverageValuesList)):
+                AverageValues[j] = AverageValues[j] + AverageValuesList[i][j]
+                if j == 0:
+                    PeakIntensity = PeakIntensity + PeakIntensityList[i]
+            if j == 0:
+                PeakIntensity = PeakIntensity / len(PeakIntensityList)
+            AverageValues[j] = AverageValues[j] / len(AverageValuesList)
+        ecrit = fitDataToSynchrotronSpectrum(self.energy, AverageValues, self.T)
+        NPhotons, NPhotons01percent, NPhotons_01percent_omega_s = getPhotonFlux(self.energy, ecrit, PeakIntensity,
+                                                                                self.T[:, -1], self.PixelSize,
+                                                                                self.GasCell2Camera, self.RepRate,
+                                                                                self.Alpha)
+        return ecrit, NPhotons, NPhotons01percent, NPhotons_01percent_omega_s
+
+
+def xrayAnalysis(Images, SettingPath):
     """
     This function is to run for the anaylis. Coded in
-    :param MaskingName: MaskingName is the end of the masking files. These have the names of the filters, plus
-        some additional strings to make them unique. In the TA2 2019 run this is either
-        a) '_Mask.mat' for the full 1024 x 1024 X-Ray images
-        b) '_MaskBinned.mat' for the faster binned 256 x 256 X-Ray images, which are used in the 5 Hz run
-    :param Filetype: '.tiff' or '.tif'
-    :param SettingFile: '2019JulyTA2.txt' or '2019AugustTA2.txt'
-    :param ImagePath: Can be either an individual image or a directory with images
+    :param SettingPath: path where the settings can be found
+    :param Images: numpy array of images
     :return: ecrit, NPhotons, NPhotons01percent, NPhotons_01percent_omega_s
-
     For test purposes the following code was partially used (re-use for error analysis):
     SettingPath = 'Settings'
     # ecrit = 10
-    SettingFile = '2019AugustTA2.txt'
+    SettingFile = '2019TA2Transmission.txt'
     CameraSettingFile = 'CameraSettings.txt'
     ImageFile = '2019TA2TestImage.mat'
     TestImageFile = scipy.io.loadmat(os.path.join(SettingPath, ImageFile))
@@ -139,16 +218,9 @@ def xrayAnalysis(ImagePath, Filetype, SettingFile, MaskingName):
     < run the scripts with these settings, then look at the results: >
     showSignalPoints(energy, T, ecrit, FilterNames, AverageValues)
     """
-    SettingPath = 'Settings'
     CameraSettingFile = 'CameraSettings.txt'
 
-    if ImagePath[-4:] == 'tiff' or ImagePath[-4:] == '.tif':
-        FileList = ImagePath
-    else:
-        FileList = TupelOfFiles(ImagePath, Filetype)
-    Images = ImportImageFiles(FileList)
-
-    energy, T, AverageValues, FilterNames, PeakIntensity = getXRaySignal(Images, SettingPath, SettingFile, MaskingName)
+    energy, T, AverageValues, FilterNames, PeakIntensity = getXRaySignal(Images, SettingPath)
     ecrit = fitDataToSynchrotronSpectrum(energy, AverageValues, T)
     NPhotons, NPhotons01percent, NPhotons_01percent_omega_s = getPhotonFlux(SettingPath, CameraSettingFile, energy,
                                                                             ecrit, PeakIntensity, T[:, -1])

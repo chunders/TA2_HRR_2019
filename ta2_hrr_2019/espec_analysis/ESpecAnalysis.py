@@ -79,7 +79,7 @@ def loadMatFile(SettingPath, FileName, VariableName):
 def imageTransformation(Image, LimitView, J2, Projection, ROI1, ROI2):
     Image = Image[LimitView[0]:LimitView[1], LimitView[2]:LimitView[3]]
     Image = skimage.transform.warp(Image, Projection)
-    Image = np.multiply(Image, 1/J2)
+    Image = np.multiply(Image, 1 / J2)
     Image = Image.transpose()
     Image = Image[ROI1, ROI2]
     return Image
@@ -103,9 +103,9 @@ def constantsDefinitions(SettingPath):
     ScreenEnergyOnAverage = loadMatFile(SettingPath, ImageWarpingFile, ImageWarpingVariable)
     Screen, EnergyOnAverage = ScreenEnergyOnAverage
     poly3 = np.poly1d(np.polyfit(Screen[0, :], EnergyOnAverage[0, :], 3))
-    E = poly3(L/1e3)
+    E = poly3(L / 1e3)
     dpoly3 = np.polyder(poly3)
-    dEoverdx = dpoly3(L/1e3)
+    dEoverdx = dpoly3(L / 1e3)
     dxoverdE = 1 / dEoverdx
     # dEoverE = np.multiply(dE, 1/E)
     return J, W, pts, E, dxoverdE, BckgndImage
@@ -145,8 +145,8 @@ def calibrationFunction(ImagePath, BackgroundPath, SavePath):
     CentrePointDistance = 255
     J, L = getJacobianAndSpatialCalibration(WarpedImage, M, Length, CentrePoint, CentrePointDistance)
     PixelWidth = WarpedImage.shape[0]
-    W = np.arange(0, PixelWidth) - round(PixelWidth/2)
-    W = W/PixelWidth*Width
+    W = np.arange(0, PixelWidth) - round(PixelWidth / 2)
+    W = W / PixelWidth * Width
     # define the path of the background images here:
     BckgndImage = backgroundImages(BackgroundPath, J, pts)
     scipy.io.savemat(os.path.join(SavePath, 'CalibrationParamters.mat'), {'Jacobian': J, 'Length': L, 'Width': W,
@@ -170,6 +170,7 @@ def electronSpectrum(Image, dxoverdE):
     Spectrum = np.multiply(SumCounts, dxoverdE)
     return Spectrum
 
+
 """
 def analysisImages(PathOfImage, Filetype='.tif'):
     if PathOfImage[-4:] == 'tiff' or PathOfImage[-4:] == '.tif':
@@ -184,6 +185,7 @@ def analysisImages(PathOfImage, Filetype='.tif'):
     Spectrum = electronSpectrum(PureWarpedImage, dxoverdE)
     return E, Spectrum
 """
+
 
 class HighEspec:
     def __init__(self, runName, DataPath=ta2_hrr_2019.utils.DATA_FOLDER):
@@ -202,14 +204,12 @@ class HighEspec:
         return WarpedImageWithoutBckgnd
 
     def analyseImages(self, WarpedImages):
-        if len(WarpedImages.shape) == 3:
-            NumOfImages = WarpedImages.shape[-1]
-        else:
-            NumOfImages = 1
-            WarpedImages = np.expand_dims(WarpedImages, axis=2)
-        for i in range(0, NumOfImages):
-            Spectrum = electronSpectrum(WarpedImages[:, :, i], self.dxoverdE)
-            return self.E, Spectrum
+        if not isinstance(WarpedImages, list):
+            WarpedImages = [WarpedImages]
+        Spectrum = []
+        for i in range(0, len(WarpedImages)):
+            Spectrum.append(electronSpectrum(WarpedImages[i], self.dxoverdE))
+        return self.E, Spectrum
 
 
 if __name__ == "__main__":
@@ -226,7 +226,7 @@ if __name__ == "__main__":
     """
     # once the background pictures are acquired, read the description of calibrationFunction() and run it once
     # calibrationFunction()
-    
+
     # to analyse espec images run:
     # 1) define PathOfImage where the images of a run are
     # 1.1) If PathOfImage is a folder it will average all images and get the spectrum

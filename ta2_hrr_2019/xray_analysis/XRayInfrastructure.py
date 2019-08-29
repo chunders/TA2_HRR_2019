@@ -86,9 +86,10 @@ def XRayFilters(File):
     return VariableNames
 
 
-def loadImageMask(FilterName, SettingPath, MaskingName='_Mask.mat'):
+def loadImageMask(FilterName, SettingPath):
     FilterName.replace('\n', '')
-    FileName = FilterName.replace('\n', '') + MaskingName
+    maskingName = '_Mask.mat'
+    FileName = FilterName.replace('\n', '') + maskingName
     PathToLoad = os.path.join(SettingPath, FileName)
     MaskFile = scipy.io.loadmat(PathToLoad)
     Mask = MaskFile['MaterialMask']
@@ -101,7 +102,46 @@ def getAverageTransmission(Image, Mask):
     return MeanValue
 
 
-def getXRaySignal(XRayImage, SettingPath, SettingFile, MaskingName):
+def getRequiredCalibration(SettingPath):
+    SettingFile = '2019TA2Transmission.txt'
+    CameraSettingFile = 'CameraSettings.txt'
+    VariableNames, energy, T = ImportXRayTransmissions(os.path.join(SettingPath, SettingFile))
+    BackgroundSignal = 0
+    FilterNames = []
+    MaskHere = []
+    for i in range(0, len(VariableNames)):
+        if VariableNames[i] == 'Energy':
+            continue
+        FilterNames.append(VariableNames[i])
+        MaskHere.append(loadImageMask(VariableNames[i], SettingPath))
+    File = os.path.join(SettingPath, CameraSettingFile)
+    T, FilterNames, MaskHere = sortTransmissions(T, FilterNames, MaskHere)
+    PixelSize, GasCell2Camera, RepRate, Alpha, sigma_Alpha = getCameraSettings(File)
+    return energy, T, FilterNames, MaskHere, PixelSize, GasCell2Camera, RepRate, Alpha, sigma_Alpha
+
+
+def getXRaySignal(image, Masks, FilterNames):
+    # one of the filters is the background Tungsten = W
+    AverageValues = np.zeros(len(FilterNames) - 1)
+    BackgroundSignal = 0
+    j = 0
+    for i in range(0, len(FilterNames)):
+        MaskHere = Masks[i]
+        if FilterNames[i] == 'W':
+            BackgroundSignal = getAverageTransmission(image, MaskHere)
+        else:
+            AverageValues[j] = getAverageTransmission(image, MaskHere)
+            j += 1
+    for j in range(0, len(AverageValues)):
+        AverageValues[j] = AverageValues[j] - BackgroundSignal
+    AverageValues = normaliseArrayOnAverage(AverageValues)
+    PeakIntensity = np.amax(AverageValues)
+    return AverageValues, PeakIntensity
+
+
+"""
+def getXRaySignal(XRayImage, SettingPath):
+    SettingFile = '2019TA2Transmission.txt'
     VariableNames, energy, T = ImportXRayTransmissions(os.path.join(SettingPath, SettingFile))
     AverageValues = np.zeros(len(VariableNames) - 2)
     BackgroundSignal = 0
@@ -110,7 +150,7 @@ def getXRaySignal(XRayImage, SettingPath, SettingFile, MaskingName):
     for i in range(0, len(VariableNames)):
         if VariableNames[i] == 'Energy':
             continue
-        MaskHere = loadImageMask(VariableNames[i], SettingPath, MaskingName)
+        MaskHere = loadImageMask(VariableNames[i], SettingPath)
         if VariableNames[i] == 'W':
             BackgroundSignal = getAverageTransmission(XRayImage, MaskHere)
         else:
@@ -118,18 +158,29 @@ def getXRaySignal(XRayImage, SettingPath, SettingFile, MaskingName):
             FilterNames.append(VariableNames[i])
             j += 1
     for j in range(0, len(AverageValues)):
-        # StrToPrint1 = "%s Signal %f" % (FilterNames[j], AverageValues[j])
-        # print(StrToPrint1)
         AverageValues[j] = AverageValues[j] - BackgroundSignal
-        # StrToPrint2 = "%s Signal without Bckgrnd %f" % (FilterNames[j], AverageValues[j])
-        # print(StrToPrint2)
     PeakIntensity = AverageValues[0]
     AverageValues = normaliseArrayOnAverage(AverageValues)
-    T, AverageValues, FilterNames = sortTransmissions(T, AverageValues, FilterNames)
+    T, AverageValues, FilterNames = sortTransmissionsValues(T, AverageValues, FilterNames)
     return energy, T, AverageValues, FilterNames, PeakIntensity
+"""
 
 
-def sortTransmissions(T, AverageValues, VariableNames):
+def sortTransmissions(T, VariableNames, MaskHere):
+    SumT = np.sum(T, axis=0)
+    Order = np.argsort(SumT)
+    NewVariableNames = [VariableNames[Order[0]]]
+    NewMaskHere = [MaskHere[Order[0]]]
+    NewT = np.zeros(T.shape)
+    NewT[:, 0] = T[:, Order[0]]
+    for i in range(1, len(Order)):
+        NewVariableNames.append(VariableNames[Order[i]])
+        NewMaskHere.append(MaskHere[Order[i]])
+        NewT[:, i] = T[:, Order[i]]
+    return NewT, NewVariableNames, NewMaskHere
+
+
+def sortTransmissionsValues(T, AverageValues, VariableNames):
     SumT = np.sum(T, axis=0)
     Order = np.argsort(SumT)
     NewAverageValues = AverageValues[Order]
