@@ -15,9 +15,11 @@ def setup_mirage_analysis():
     from mirage_analysis.loader import GCamDataLoader, FallibleGCamDataLoader, ImageDataLoader
     mirage_analysis.configure(os.path.join(DATA_FOLDER, 'MIRAGE'))
     mirage_analysis.register_data_loader('ESpec', FallibleGCamDataLoader)
+    mirage_analysis.register_data_loader('HighESpec', ImageDataLoader)
     mirage_analysis.register_data_loader('HASOFF', GCamDataLoader)
     mirage_analysis.register_data_loader('HASONF', GCamDataLoader)
     mirage_analysis.register_data_loader('PreCompFF', GCamDataLoader)
     mirage_analysis.register_data_loader('PreCompNF', GCamDataLoader)
     mirage_analysis.register_data_loader('XRay', ImageDataLoader)
     mirage_analysis.register_data_loader('EProfile', GCamDataLoader)
+    mirage_analysis.register_data_loader('Probe_Interferometry', ImageDataLoader)

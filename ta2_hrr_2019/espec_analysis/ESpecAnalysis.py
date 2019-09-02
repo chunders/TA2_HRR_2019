@@ -21,7 +21,7 @@ import pkg_resources
 import ta2_hrr_2019
 
 
-def getCalibrationFromCSV(runName, DataPath=ta2_hrr_2019.utils.DATA_FOLDER, Diagnostic):
+def getCalibrationFromCSV(runName, DataPath=ta2_hrr_2019.utils.DATA_FOLDER, Diagnostic='HighESpec'):
     csv_name = pkg_resources.resource_filename(__name__, 'calibration.csv')
     with open(csv_name) as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=',')
@@ -39,6 +39,8 @@ def getCalibrationFromCSV(runName, DataPath=ta2_hrr_2019.utils.DATA_FOLDER, Diag
 
 
 def TupelOfFiles(path="", Filetype='.tif'):
+    print('Im here')
+    print(path)
     if len(path) == 0:
         path = "."
     FileList = []
@@ -46,6 +48,8 @@ def TupelOfFiles(path="", Filetype='.tif'):
         if files.endswith(Filetype):
             FileList.append(os.path.join(path, files))
             print(FileList[-1])
+    if len(FileList) == 0:
+        FileList = TupelOfFiles(path, '.tiff')
     return FileList
 
 
@@ -175,7 +179,7 @@ def backgroundImages(Path, J, pts):
         FileList = TupelOfFiles(Path)
         BackgroundImages = ImportImageFiles(FileList)
         BackgroundImage = np.mean(BackgroundImages, 2)
-        WarpedBackgroundImage = four_point_transform(BackgroundImage, pts, J)
+        WarpedBackgroundImage, ___ = four_point_transform(BackgroundImage, pts, J)
     else:
         WarpedBackgroundImage = 0
     return WarpedBackgroundImage
@@ -214,7 +218,7 @@ class Espec:
     return: pts point for warping the image
     return: W width of the camera image in [m] (at the moment)
     """
-    def __init__(self, runName, DataPath=ta2_hrr_2019.utils.DATA_FOLDER, Diagnostic="HighEspec"):
+    def __init__(self, runName, DataPath=ta2_hrr_2019.utils.DATA_FOLDER, Diagnostic="HighESpec"):
         # Diagnostic = "Espec"
         J, W, pts, E, dxoverdE, BckgndImage = getCalibrationFromCSV(runName, DataPath, Diagnostic)
         self.J = J
