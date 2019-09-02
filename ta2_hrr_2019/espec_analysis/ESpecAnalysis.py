@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Mon Jul 29 14:45:56 2019
-XRayFilterPack
+ESpec
 @author: Gruse
 """
 import os
@@ -21,8 +21,7 @@ import pkg_resources
 import ta2_hrr_2019
 
 
-def getCalibrationFromCSV(runName, DataPath=ta2_hrr_2019.utils.DATA_FOLDER):
-    # csv_file = os.path.join(os.path.realpath(__file__), 'calibration.csv')
+def getCalibrationFromCSV(runName, DataPath=ta2_hrr_2019.utils.DATA_FOLDER, Diagnostic):
     csv_name = pkg_resources.resource_filename(__name__, 'calibration.csv')
     with open(csv_name) as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=',')
@@ -34,7 +33,7 @@ def getCalibrationFromCSV(runName, DataPath=ta2_hrr_2019.utils.DATA_FOLDER):
                 print('Found Calibration')
             else:
                 break
-    CalibrationFilePath = os.path.join(*[DataPath, "Calibrations", "HighEspec", CalibrationFile])
+    CalibrationFilePath = os.path.join(*[DataPath, "Calibrations", Diagnostic, CalibrationFile])
     J, W, pts, E, dxoverdE, BckgndImage = constantsDefinitions(CalibrationFilePath)
     return J, W, pts, E, dxoverdE, BckgndImage
 
@@ -118,6 +117,10 @@ def constantsDefinitions(SettingPath):
 def calibrationFunction(ImagePath, BackgroundPath, SavePath):
     """
     This can be run to sort out all the calibrations needed. It requires some manual analysis:
+    ImagePath conatins the images (with the spatial features)
+    BackgroundPath is the path containing background images
+    SavePath is the calibration folder
+
     pts: are the points, which are taken at the corners on the edges of the spectrometer screen to flatten.
     Length: mm length of the espec screen, manually analised (= m. a.)
     Width: mm width of the espec screen (m. a.)
@@ -136,17 +139,26 @@ def calibrationFunction(ImagePath, BackgroundPath, SavePath):
     +) The path of the background images need to be defined. Otherwise the code just subtracts 0
     :return:
     """
+    # Input, change this for other calibrations:
+    # HighESpec:
     pts = np.array([[46, 849], [46, 1158], [2035, 871], [2033, 1136]])
-
+    Length = 230
+    Width = 30
+    CentrePoint = 991
+    CentrePointDistance = 255
+    """
+    #  ESpec:
+    pts = np.array([[46, 849], [46, 1158], [2035, 871], [2033, 1136]])
+    Length = 230
+    Width = 30
+    CentrePoint = 991
+    CentrePointDistance = 255
+    """
     FileList = TupelOfFiles(ImagePath)
     ImageWithSpatialPattern = ImportImageFiles(FileList)
 
     WarpedImage, M = four_point_transform(ImageWithSpatialPattern[:, :, 0], pts)
     scipy.io.savemat(os.path.join(SavePath, 'WarpedImage.mat'), {'WarpedImage': ImageWithSpatialPattern})
-    Length = 230
-    Width = 30
-    CentrePoint = 991
-    CentrePointDistance = 255
     J, L = getJacobianAndSpatialCalibration(WarpedImage, M, Length, CentrePoint, CentrePointDistance)
     PixelWidth = WarpedImage.shape[0]
     W = np.arange(0, PixelWidth) - round(PixelWidth / 2)
@@ -191,7 +203,7 @@ def analysisImages(PathOfImage, Filetype='.tif'):
 """
 
 
-class HighEspec:
+class Espec:
     """
     Function to load calibration values for the electron spectrometer.
     function: __init__ takes a run name and the path of the data.
@@ -202,8 +214,9 @@ class HighEspec:
     return: pts point for warping the image
     return: W width of the camera image in [m] (at the moment)
     """
-    def __init__(self, runName, DataPath=ta2_hrr_2019.utils.DATA_FOLDER):
-        J, W, pts, E, dxoverdE, BckgndImage = getCalibrationFromCSV(runName, DataPath)
+    def __init__(self, runName, DataPath=ta2_hrr_2019.utils.DATA_FOLDER, Diagnostic="HighEspec"):
+        # Diagnostic = "Espec"
+        J, W, pts, E, dxoverdE, BckgndImage = getCalibrationFromCSV(runName, DataPath, Diagnostic)
         self.J = J
         self.BckgndImage = BckgndImage
         self.dxoverdE = dxoverdE
@@ -215,7 +228,7 @@ class HighEspec:
         image = rawImageuint16.astype(float)
         WarpedImage, __ = four_point_transform(image, self.pts, self.J)
         WarpedImageWithoutBckgnd = WarpedImage - self.BckgndImage
-        Spectrum = electronSpectrum(WarpedImages[i], self.dxoverdE)
+        Spectrum = electronSpectrum(WarpedImageWithoutBckgnd, self.dxoverdE)
         return Spectrum
 
     def AverageSpectrum(self, Spectra):
