@@ -8,9 +8,10 @@ import sys
 
 class MirageBoxSync():
     def __init__(self,user='m.streeter09@imperial.ac.uk',dataFolder = r'E:\Streeter2019\MIRAGE',boxFolder=r'TA2_HRR_2019/MIRAGE'):
-        self.connect2box()
+        self.user = user
         self.dataFolder = dataFolder
         self.boxFolder = boxFolder
+        self.connect2box()
     def connect2box(self):
         """
         Connects to the box sync server 
@@ -22,7 +23,7 @@ class MirageBoxSync():
         ftp.login(user=self.user, passwd = getpass.getpass())
         # move to destination directory
         ftp.cwd(self.boxFolder)  
-        print('FTP: moving to folder ' + boxFolder +' \n')
+        print('FTP: moving to folder ' + self.boxFolder +' \n')
         self.ftp  = ftp
 
     def disconnectBox(self):
