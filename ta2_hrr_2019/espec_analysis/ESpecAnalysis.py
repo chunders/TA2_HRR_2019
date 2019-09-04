@@ -39,8 +39,6 @@ def getCalibrationFromCSV(runName, DataPath=ta2_hrr_2019.utils.DATA_FOLDER, Diag
 
 
 def TupelOfFiles(path="", Filetype='.tif'):
-    print('Im here')
-    print(path)
     if len(path) == 0:
         path = "."
     FileList = []
@@ -118,7 +116,7 @@ def constantsDefinitions(SettingPath):
     return J, W, pts, E, dxoverdE, BckgndImage
 
 
-def calibrationFunction(ImagePath, BackgroundPath, SavePath):
+def calibrationFunction(ImagePath, BackgroundPath, SavePath, Mode="HighESpec"):
     """
     This can be run to sort out all the calibrations needed. It requires some manual analysis:
     ImagePath conatins the images (with the spatial features)
@@ -143,27 +141,25 @@ def calibrationFunction(ImagePath, BackgroundPath, SavePath):
     +) The path of the background images need to be defined. Otherwise the code just subtracts 0
     :return:
     """
-    # Input, change this for other calibrations:
-    # HighESpec:
-    pts = np.array([[46, 849], [46, 1158], [2035, 871], [2033, 1136]])
-    Length = 230
-    Width = 30
-    CentrePoint = 991
-    CentrePointDistance = 255
-    """
-    #  ESpec:
-    pts = np.array([[46, 849], [46, 1158], [2035, 871], [2033, 1136]])
-    Length = 230
-    Width = 30
-    CentrePoint = 991
-    CentrePointDistance = 255
-    """
+    if Mode=="HighESpec":
+        # HighESpec:
+        pts = np.array([[46, 849], [46, 1158], [2035, 871], [2033, 1136]])
+        Length = 230
+        Width = 30
+        ScreenStart = 140
+        # CentrePoint (for manual calibration) 255 mm from the screen start and it ends at 370 mm
+    elif Mode=="ESpec":
+        pts = np.array([[12, 181], [8, 298], [638, 201], [635, 287]])
+        Length = 270
+        Width = 30
+        CentrePointDistance = 0
+
     FileList = TupelOfFiles(ImagePath)
     ImageWithSpatialPattern = ImportImageFiles(FileList)
 
     WarpedImage, M = four_point_transform(ImageWithSpatialPattern[:, :, 0], pts)
     scipy.io.savemat(os.path.join(SavePath, 'WarpedImage.mat'), {'WarpedImage': ImageWithSpatialPattern})
-    J, L = getJacobianAndSpatialCalibration(WarpedImage, M, Length, CentrePoint, CentrePointDistance)
+    J, L = getJacobianAndSpatialCalibration(WarpedImage, M, Length, ScreenStart)
     PixelWidth = WarpedImage.shape[0]
     W = np.arange(0, PixelWidth) - round(PixelWidth / 2)
     W = W / PixelWidth * Width
@@ -171,15 +167,16 @@ def calibrationFunction(ImagePath, BackgroundPath, SavePath):
     BckgndImage = backgroundImages(BackgroundPath, J, pts)
     scipy.io.savemat(os.path.join(SavePath, 'CalibrationParamters.mat'), {'Jacobian': J, 'Length': L, 'Width': W,
                                                                           'pts': pts, 'BckgndImage': BckgndImage})
-    return J, L, W, BckgndImage
+    return WarpedImage, J, L, W, BckgndImage
 
 
 def backgroundImages(Path, J, pts):
     if len(Path) > 0:
         FileList = TupelOfFiles(Path)
         BackgroundImages = ImportImageFiles(FileList)
-        BackgroundImage = np.mean(BackgroundImages, 2)
+        BackgroundImage = np.mean(BackgroundImages, axis=2)
         WarpedBackgroundImage, ___ = four_point_transform(BackgroundImage, pts, J)
+        WarpedBackgroundImage = np.fliplr(WarpedBackgroundImage)
     else:
         WarpedBackgroundImage = 0
     return WarpedBackgroundImage
@@ -189,22 +186,6 @@ def electronSpectrum(Image, dxoverdE):
     SumCounts = np.sum(Image, 0)
     Spectrum = np.multiply(SumCounts, dxoverdE)
     return Spectrum
-
-
-"""
-def analysisImages(PathOfImage, Filetype='.tif'):
-    if PathOfImage[-4:] == 'tiff' or PathOfImage[-4:] == '.tif':
-        FileList = PathOfImage
-    else:
-        FileList = TupelOfFiles(PathOfImage, Filetype)
-    Images = ImportImageFiles(FileList)
-    Image = np.mean(Images, 2)
-    J, W, pts, E, dxoverdE, BckgndImage = constantsDefinitions()
-    WarpedImage, __ = four_point_transform(Image, pts, J)
-    PureWarpedImage = WarpedImage - BckgndImage
-    Spectrum = electronSpectrum(PureWarpedImage, dxoverdE)
-    return E, Spectrum
-"""
 
 
 class Espec:
@@ -224,16 +205,18 @@ class Espec:
         self.J = J
         self.BckgndImage = BckgndImage
         self.dxoverdE = dxoverdE
-        self.E = E
+        self.E = E.T
         self.pts = pts
         self.W = W
 
     def SpectrumFromImage(self, rawImageuint16):
         image = rawImageuint16.astype(float)
         WarpedImage, __ = four_point_transform(image, self.pts, self.J)
+        WarpedImage = np.fliplr(WarpedImage)
+        time.sleep(.1)
         WarpedImageWithoutBckgnd = WarpedImage - self.BckgndImage
         Spectrum = electronSpectrum(WarpedImageWithoutBckgnd, self.dxoverdE)
-        return Spectrum
+        return Spectrum, WarpedImageWithoutBckgnd
 
     def AverageSpectrum(self, Spectra):
         if not isinstance(Spectra, list):

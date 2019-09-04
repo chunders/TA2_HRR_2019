@@ -1,7 +1,7 @@
 # import the necessary packages
 import numpy as np
 import cv2
-
+import matplotlib.pyplot as plt
 
 def order_points(pts):
     # initialzie a list of coordinates that will be ordered
@@ -61,8 +61,7 @@ def four_point_transform(image, pts, J=1):
     # compute the perspective transform matrix and then apply it
     M = cv2.getPerspectiveTransform(rect, dst)
     warped = cv2.warpPerspective(image, M, (maxWidth, maxHeight))
-    WarpedImage = np.multiply(warped, 1 / J)
-    # return the warped image
+    WarpedImage = np.multiply(warped, 1 / J) 
     return WarpedImage, M
 
 
@@ -70,6 +69,45 @@ def ProjectiveTransformJacobian(params, ImSize):
     u = np.arange(0, ImSize[1])
     v = np.arange(0, ImSize[0])
     u, v = np.meshgrid(u, v)
+    """
+    a = params[0, 0]
+    b = params[1, 0]
+    c = params[2, 0]
+    d = params[0, 1]
+    e = params[1, 1]
+    f = params[2, 1]
+    g = params[0, 2]
+    h = params[1, 2]
+    """
+    a = params[0, 0]
+    b = params[0, 1]
+    c = params[0, 2]
+    d = params[1, 0]
+    e = params[1, 1]
+    f = params[1, 2]
+    g = params[2, 0]
+    h = params[2, 1]
+    lam = 1 / (g * u + h * v + 1)
+    J1 = lam ** 2 * (a * e - b * d)
+    J2 = (d * h - e * g) * (a * u + b * v + c)
+    J3 = (b * g - a * h) * (d * u + e * v + f)
+    J23 = J2 + J3
+    J = J1 + np.multiply(lam ** 3, J23)
+    return J
+
+"""
+def ProjectiveTransformJacobian(OrgImg, M, OrgImSize, WarpedImSize):
+    u = np.arange(0, WarpedImSize[1])
+    v = np.arange(0, WarpedImSize[0])
+    u, v = np.meshgrid(u, v)
+
+    x = np.arange(0, OrgImSize[1])
+    y = np.arange(0, OrgImSize[0])
+    x, y = np.meshgrid(x, y)
+
+    xwarped = cv2.warpPerspective(x, M, (WarpedImSize[0], WarpedImSize[1]))
+    ywarped = cv2.warpPerspective(y, M, (WarpedImSize[0], WarpedImSize[1]))
+    
     a = params[0, 0]
     b = params[1, 0]
     c = params[2, 0]
@@ -79,15 +117,18 @@ def ProjectiveTransformJacobian(params, ImSize):
     g = params[0, 2]
     h = params[1, 2]
     lam = 1 / (g * u + h * v + 1)
+    print(np.mean(lam))
+    print(params)
     J1 = lam ** 2 * (a * e - b * d)
     J2 = (d * h - e * g) * (a * u + b * v + c)
     J3 = (b * g - a * h) * (d * u + e * v + f)
     J23 = J2 + J3
     J = J1 + np.multiply(lam ** 3, J23)
+    print(np.mean(J))
     return J
+"""
 
-
-def getJacobianAndSpatialCalibration(WarpedImage, M, Length, CentrePoint, CentrePointDistance):
+def getJacobianAndSpatialCalibration(WarpedImage, M, Length, ScreenStart):
     """
     The function is used to calculate the Jacobian, which compensates for projecting the image.
     The pixel values need to be adjusted for stretching. It used a warped image and the transformation matrix.
@@ -105,6 +146,5 @@ def getJacobianAndSpatialCalibration(WarpedImage, M, Length, CentrePoint, Centre
     PixelLength = WarpedImage.shape[1]
     L = np.arange(0, PixelLength)
     L = L / PixelLength * Length
-    L0 = L[CentrePoint]
-    L = L - L0 + CentrePointDistance
+    L = L + ScreenStart
     return J, L
