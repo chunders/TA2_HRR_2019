@@ -15,13 +15,14 @@ from scipy.special import kv
 from scipy.integrate import trapz
 from scipy import optimize
 import time
-from XRayInfrastructure import *
-try:
-    from XRayInfrastructure import *
-except ValueError:
-    from ta2_hrr_2019.xray_analysis.XRayInfrastructure import *
+import csv
+from ta2_hrr_2019.xray_analysis.XRayInfrastructure import *
+#try:
+#    from XRayInfrastructure import *
+#except ValueError:
+#    from ta2_hrr_2019.xray_analysis.XRayInfrastructure import *
 import pkg_resources
-
+import ta2_hrr_2019
 
 def synchrotronFunction(energy, ecrit):
     phi = energy / (2 * ecrit)
@@ -142,28 +143,37 @@ def theoreticalTransmissionSignal(energy, TSQE):
     return theoryValue
 
 
-def getCalibrationFromCSV(runName, DataPath=ta2_hrr_2019.utils.DATA_FOLDER):
-    # csv_file = os.path.join(os.path.realpath(__file__), 'calibration.csv')
-    csv_file = pkg_resources.get_resource_filename(__name__, 'calibration.csv')
-    csv_reader = csv.reader(csv_file, delimiter=',')
-    for row in csv_reader:
-        row[0].split("/")
-        if row[0] <= runName:
-            # change it here, depending on how we do it with the calibration information
-            CalibrationFile = row[1]
-        else:
-            break
+def backgroundImages(InputPath, SavePath):
+        FileList = TupelOfFiles(InputPath)
+        BackgroundImages = ImportImageFiles(FileList)
+        BackgroundImage = np.mean(BackgroundImages, axis=2)
+        BackgroundImageStd = np.std(BackgroundImages, axis=2) / np.sqrt(len(FileList))
+        scipy.io.savemat(os.path.join(SavePath, 'Darkfield.mat'),
+                         {'BackgroundImage': BackgroundImage,'BackgroundImageStd': BackgroundImageStd})
+        
+    
+def getCalibrationFromCSV(runName, DataPath):
+    csv_name = pkg_resources.resource_filename(__name__, 'calibration.csv')
+    with open(csv_name) as csv_file:
+        csv_reader = csv.reader(csv_file, delimiter=',')
+        for row in csv_reader:
+            RunDateHere, FileNameHere = row
+            if RunDateHere <= runName:
+                # change it here, depending on how we do it with the calibration information
+                CalibrationFile = FileNameHere
+            else:
+                break
     SettingPath = os.path.join(*[DataPath, "Calibrations", "XRay", CalibrationFile])
     return SettingPath
 
 
 class XRay:
-    def __init__(self, runName, DataPath=ta2_hrr_2019.utils.DATA_FOLDER):
+    def __init__(self, runName, DataPath):
         self.SettingPath = getCalibrationFromCSV(runName, DataPath)
-        energy, T, FilterNames, MaskHere, PixelSize, GasCell2Camera, RepRate, Alpha, sigma_Alpha = \
+        energy, T, FilterNames, MaskHere, PixelSize, GasCell2Camera, RepRate, Alpha, sigma_Alpha, BackgroundImage, BackgroundImageStd = \
             getRequiredCalibration(self.SettingPath)
         self.energy = energy
-        self.T = T
+        self.T = T[:, 1:]
         self.FilterNames = FilterNames
         self.MaskHere = MaskHere
         self.PixelSize = PixelSize
@@ -171,10 +181,12 @@ class XRay:
         self.RepRate = RepRate
         self.Alpha = Alpha
         self.sigma_Alpha = sigma_Alpha
+        self.BackgroundImage = BackgroundImage
+        self.BackgroundImageStd = BackgroundImageStd
 
     def prepImages(self, image):
         image = image.astype(float)
-        AverageValues, PeakIntensity = getXRaySignal(image, self.MaskHere, self.FilterNames)
+        AverageValues, PeakIntensity = getXRaySignal(image, self.MaskHere, self.FilterNames, self.BackgroundImage)
         return AverageValues, PeakIntensity
 
     def analyseImages(self, AverageValuesList, PeakIntensityList):

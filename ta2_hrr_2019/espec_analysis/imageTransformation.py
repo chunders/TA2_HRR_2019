@@ -128,7 +128,7 @@ def ProjectiveTransformJacobian(OrgImg, M, OrgImSize, WarpedImSize):
     return J
 """
 
-def getJacobianAndSpatialCalibration(WarpedImage, M, Length, ScreenStart):
+def getJacobianAndSpatialCalibration(OrgImageSize, WarpedImageSize, M, Length, ScreenStart):
     """
     The function is used to calculate the Jacobian, which compensates for projecting the image.
     The pixel values need to be adjusted for stretching. It used a warped image and the transformation matrix.
@@ -142,9 +142,10 @@ def getJacobianAndSpatialCalibration(WarpedImage, M, Length, ScreenStart):
     :param CentrePointDistance:
     :return:
     """
-    J = ProjectiveTransformJacobian(M, WarpedImage.shape)
-    PixelLength = WarpedImage.shape[1]
+    Jxy = ProjectiveTransformJacobian(M, OrgImageSize)
+    Juv = cv2.warpPerspective(Jxy, M, (WarpedImageSize[1], WarpedImageSize[0]))
+    PixelLength = WarpedImageSize[1]
     L = np.arange(0, PixelLength)
     L = L / PixelLength * Length
     L = L + ScreenStart
-    return J, L
+    return Juv, L

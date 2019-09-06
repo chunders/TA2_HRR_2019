@@ -30,24 +30,29 @@ def getCalibrationFromCSV(runName, DataPath=ta2_hrr_2019.utils.DATA_FOLDER, Diag
             if RunDateHere <= runName:
                 # change it here, depending on how we do it with the calibration information
                 CalibrationFile = FileNameHere
-                print('Found Calibration')
             else:
                 break
     CalibrationFilePath = os.path.join(*[DataPath, "Calibrations", Diagnostic, CalibrationFile])
+    print('Found Calibration: ', CalibrationFilePath)
+    ImageWarpingVariable = ['WarpedImage']
+    WarpedImage = loadMatFile(CalibrationFilePath, 'WarpedImage.mat', ImageWarpingVariable)
+    
     J, W, pts, E, dxoverdE, BckgndImage = constantsDefinitions(CalibrationFilePath)
     return J, W, pts, E, dxoverdE, BckgndImage
 
 
-def TupelOfFiles(path="", Filetype='.tif'):
+def TupelOfFiles(path="", Filetype=('.tif','.tiff','.TIFF','.TIF')):
+    if not isinstance(Filetype, list):
+        Filetype = (Filetype)
     if len(path) == 0:
         path = "."
     FileList = []
     for files in os.listdir(path):
-        if files.endswith(Filetype):
-            FileList.append(os.path.join(path, files))
-            print(FileList[-1])
-    if len(FileList) == 0:
-        FileList = TupelOfFiles(path, '.tiff')
+        for endings in Filetype:
+            if files.endswith(endings):
+                FileList.append(os.path.join(path, files))
+                # print(FileList[-1])
+    print('Found ', len(FileList), ' files')
     return FileList
 
 
@@ -143,23 +148,24 @@ def calibrationFunction(ImagePath, BackgroundPath, SavePath, Mode="HighESpec"):
     """
     if Mode=="HighESpec":
         # HighESpec:
-        pts = np.array([[46, 849], [46, 1158], [2035, 871], [2033, 1136]])
-        Length = 230
+        pts = np.array([[40, 659], [41, 380], [1905, 389], [1907, 637]])
+        Length = 350 - 120
         Width = 30
-        ScreenStart = 140
+        ScreenStart = 120
         # CentrePoint (for manual calibration) 255 mm from the screen start and it ends at 370 mm
     elif Mode=="ESpec":
-        pts = np.array([[12, 181], [8, 298], [638, 201], [635, 287]])
-        Length = 270
+        pts = np.array([[9, 276], [11, 168], [646, 179], [646, 269]])
+        Length = 260 - 15
         Width = 30
-        CentrePointDistance = 0
+        ScreenStart = 15
 
     FileList = TupelOfFiles(ImagePath)
     ImageWithSpatialPattern = ImportImageFiles(FileList)
 
     WarpedImage, M = four_point_transform(ImageWithSpatialPattern[:, :, 0], pts)
+    WarpedImage = np.fliplr(WarpedImage)
     scipy.io.savemat(os.path.join(SavePath, 'WarpedImage.mat'), {'WarpedImage': ImageWithSpatialPattern})
-    J, L = getJacobianAndSpatialCalibration(WarpedImage, M, Length, ScreenStart)
+    J, L = getJacobianAndSpatialCalibration(ImageWithSpatialPattern[:, :, 0].shape, WarpedImage.shape, M, Length, ScreenStart)
     PixelWidth = WarpedImage.shape[0]
     W = np.arange(0, PixelWidth) - round(PixelWidth / 2)
     W = W / PixelWidth * Width

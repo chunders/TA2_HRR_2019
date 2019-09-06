@@ -4,10 +4,11 @@ import os
 import numpy as np
 import time
 import sys
+import re
 
 
 class MirageBoxSync():
-    def __init__(self,user='m.streeter09@imperial.ac.uk',dataFolder = r'E:\Streeter2019\MIRAGE',boxFolder=r'TA2_HRR_2019/MIRAGE'):
+    def __init__(self,user='m.streeter09@imperial.ac.uk',dataFolder = r'E:\Streeter2019\MIRAGE',boxFolder=r'/TA2_HRR_2019/MIRAGE'):
         self.user = user
         self.dataFolder = dataFolder
         self.boxFolder = boxFolder
@@ -32,8 +33,12 @@ class MirageBoxSync():
 
     def copyFile(self,filePath):
         filename = os.path.split(filePath)[1]
-        with open(filePath, 'rb') as fb:
-            self.ftp.storbinary("STOR " + filename,fb)
+        if filename not in self.ftp.nlst():
+            with open(filePath, 'rb') as fb:
+                self.ftp.storbinary("STOR " + filename,fb)
+            print('   Done  \n')
+        else:
+            print(filename + ' already exists, skipping')
 
     def ftpMakeDir(self,dirName):
         try:
@@ -43,26 +48,31 @@ class MirageBoxSync():
 
     def findDiags(self):
         self.diagList = []
-        for root, dirs, files in os.walk(self.dataFolder, topdown=True):
-            self.diagList = dirs
+        diagList = next(os.walk(self.dataFolder))[1]
+        for d in diagList:
+            if d[0] is not '.':                
+                self.diagList.append(d)
 
     def syncDate2box(self,dateStr = None):
+        ftp = self.ftp
         if dateStr is None:
             print('Enter a date string i.e.  20190904')
             return None
-
+        print('Finding diagnostics...')
         self.findDiags()
-
+        print(self.diagList)
         for diag in self.diagList:
+            print('FTP: moving to folder ' + self.boxFolder +' \n')
             ftp.cwd(self.boxFolder)  
             print('FTP: making diag folder ' + diag + ' \n')
-            ftpMakeDir(diag)
-            print('FTP: moving to diag folder ' + diag + ' \n')
-            ftp.cwd(os.path.join(self.boxFolder,diag))
+            self.ftpMakeDir(diag)
+            diagFolder = self.boxFolder + '/' + diag
+            print('FTP: moving to diag folder ' + diagFolder + ' \n')
+            ftp.cwd(diagFolder)
             print('FTP: making date folder ' + dateStr + ' \n')
-            ftpMakeDir(dateStr)
-            print('FTP: moving to date folder ' + dateStr + ' \n')
-            destPath = os.path.join(self.boxFolder,diag,dateStr)
+            self.ftpMakeDir(dateStr)
+            destPath = diagFolder + '/' + dateStr
+            print('FTP: moving to date folder ' + destPath + ' \n')
             ftp.cwd(destPath)
             newPath = destPath
             sourcePath = os.path.join(self.dataFolder,diag,dateStr)
@@ -70,11 +80,13 @@ class MirageBoxSync():
             print('FTP: walking through date folder \n')
             # walk through directories copying files
             for root, dirs, files in os.walk(sourcePath, topdown=True):
-                relPath = os.path.relpath(root, sourcePath)
+                relPath = os.path.relpath(root, sourcePath).replace('\\','/')
                 if relPath is not '.':
-                    newPath = os.path.join(destPath,relPath)
-                    ftp.cwd(newPath)
+                    newPath = destPath + '/' + relPath
+                    print('relPath: ' + relPath)
                     print('FTP: moving to folder ' + newPath + ' \n')
+                    ftp.cwd(newPath)
+                    
 
                 existingFiles=[]
                 existingDirs = []
@@ -89,7 +101,7 @@ class MirageBoxSync():
                     else:
                         print('FTP: writing file ' + fileName)
                         self.copyFile(os.path.join(root,fileName))
-                        print('   Done  \n')
+                        
 
                 for dirName in dirs:
                     if dirName in existingDirs:
@@ -98,7 +110,7 @@ class MirageBoxSync():
                         print('FTP: making remote directory ' + dirName + ' \n')
                         self.ftpMakeDir(dirName)
 
-                print('All files copied' + ' \n')
+            print('All files copied' + ' \n')
 
 
 
