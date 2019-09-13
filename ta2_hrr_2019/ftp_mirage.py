@@ -35,7 +35,11 @@ class MirageBoxSync():
         filename = os.path.split(filePath)[1]
         if filename not in self.ftp.nlst():
             with open(filePath, 'rb') as fb:
-                self.ftp.storbinary("STOR " + filename,fb)
+                try:
+                    self.ftp.storbinary("STOR " + filename,fb)
+                except error_perm:
+                    connect2box()
+                    self.ftp.storbinary("STOR " + filename,fb)
             print('   Done  \n')
         else:
             print(filename + ' already exists, skipping')

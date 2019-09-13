@@ -23,3 +23,4 @@ def setup_mirage_analysis():
     mirage_analysis.register_data_loader('XRay', ImageDataLoader)
     mirage_analysis.register_data_loader('EProfile', GCamDataLoader)
     mirage_analysis.register_data_loader('Probe_Interferometry', ImageDataLoader)
+    mirage_analysis.register_data_loader('SideSpec', FallibleGCamDataLoader)

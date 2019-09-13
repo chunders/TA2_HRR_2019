@@ -20,6 +20,39 @@ import pkg_resources
 
 import ta2_hrr_2019
 
+def determineHighEnergyCutOff(E, Spectrum, BckStd_SigmaLevel):
+    """
+    The Background is subtracted from the spectrum thus the noise level equals zero. 
+    However the std of the noise should be determined and then a sigma level of that should be set to estimate the high
+    energy cut off.
+    Note: BckStd_SigmaLevel has the dimension (num,) which means that Spectrum, having the dimension (num,1) needs to be taken
+    """
+    Mask = np.greater(Spectrum[:,0], BckStd_SigmaLevel)
+    if any(Mask) is True:
+        MaximumEnergy = np.amax( E[Mask] )
+    else:
+        MaximumEnergy = 0
+    return MaximumEnergy
+
+
+def map_function_AverageCutOff(data):
+    data = np.array(data)
+    Mask = data > 0
+    NullShots = sum(data == 0)
+    if NullShots is data.shape[0]:
+        EnergyAv = 0
+        EnergyStd = None
+    elif NullShots is data.shape[0]-1:
+        EnergyAv = data[Mask]
+        EnergyStd = None
+    else:
+        EnergyAv = np.mean(data[Mask])
+        EnergyStd = np.std(data[Mask]) / len(data[Mask])    
+    return  EnergyAv, EnergyStd, NullShots
+
+
+def inout(data):
+    return data
 
 def getCalibrationFromCSV(runName, DataPath=ta2_hrr_2019.utils.DATA_FOLDER, Diagnostic='HighESpec'):
     csv_name = pkg_resources.resource_filename(__name__, 'calibration.csv')
@@ -214,6 +247,12 @@ class Espec:
         self.E = E.T
         self.pts = pts
         self.W = W
+
+    def warpImage(self,rawImageUint16):
+        image = rawImageUint16.astype(float)
+        WarpedImage, __ = four_point_transform(image, self.pts, self.J)
+        WarpedImage = np.fliplr(WarpedImage)
+        return WarpedImage
 
     def SpectrumFromImage(self, rawImageuint16):
         image = rawImageuint16.astype(float)
