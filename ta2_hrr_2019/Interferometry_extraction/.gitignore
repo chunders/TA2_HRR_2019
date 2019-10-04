@@ -3,3 +3,4 @@ Notebook_extraction/
 *.pyc
 *.npy
 *.ipynb
+.ipynb_checkpoints/

@@ -84,18 +84,20 @@ class phaseShift():
     def createGaussianCroppingWindow(self, image, bot, top, left, right, power = 8):
         """ Create a window to crop in fourier space with
         """
-        cropGaussian = np.zeros_like(image)
+        print ("Creating Gaussian To Crop. Image shape", np.shape(image))
+        cropGaussian = np.zeros_like(image, dtype = float)
         s = np.shape(image)
         sgY = []
         sgX = []
         for y in range(s[1]):
             sgY.append( self.superGaussian(y, (left + right)*0.5, abs(right-left), power))
         for x in range(s[0]):
-            sgX.append( self.superGaussian(x, (top + bot)*0.5, abs(top - bot), power))
+            sgX.append( self.superGaussian(x, (top + bot)*0.5, abs(top - bot), power))         
 
         for i, x in enumerate(sgX):
             for j, y in enumerate(sgY):
                 cropGaussian[i][j] = x * y
+    
         cropGaussian = np.real(cropGaussian)
         return cropGaussian            
             
@@ -111,6 +113,8 @@ class phaseShift():
         """ Check the four coordinates that they are within the image
         Corrects them to be within if too large/small
         """
+        bot, top, left, right = [int(bot), int(top), int(left), int(right)]
+        # print (bot, top, left, right, shape)
         if bot < 0:
             bot = 0
         if left < 0:
@@ -144,6 +148,11 @@ class phaseShift():
             plt.show()
         power = 2*6
         gaus_cropping = self.createGaussianCroppingWindow(self.im, bot, top , left, right , power)
+        if False:
+            plt.imshow(gaus_cropping)
+            plt.colorbar()
+            plt.title("Gaussian cropping window")
+            plt.show()
         self.im_PlasmaChannel = self.im * gaus_cropping
         if self.refExists:
             self.ref_PlasmaChannel = self.ref * gaus_cropping
