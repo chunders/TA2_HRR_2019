@@ -73,6 +73,10 @@ def sortArrAbyB(A, B):
 class eprofile():
     def __init__(self):
         pass
+
+    def import_arr(self, arr):
+        self.image = arr
+        self.image = self.image.astype('float64') 
     
     def load_file(self, filePath):
         """ Load the image file
@@ -224,7 +228,7 @@ if __name__ == "__main__":
     out = ep.fit_2DGaus()
 
     div = []
-    for file in fileList:
+    for file in fileList[:10]:
         ep = eprofile()
         ep.load_file(folderPath + file)
         ep.crop_to_lanex([0, 80], [410, 340])
