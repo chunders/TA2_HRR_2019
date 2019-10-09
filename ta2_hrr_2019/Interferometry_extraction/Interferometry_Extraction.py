@@ -19,15 +19,9 @@ import numpy as np
 import matplotlib as mpl
 mpl.rcParams['figure.figsize'] = [6.0,4.0]
 import matplotlib.pyplot as plt
-import CUnderwood_Functions3 as func
 
-import loadDataToNumpy_class
-import rotateArray
-import backgroundRemover_class
-import createRefenceFromImage_class
-import createPhase_class
-import createDensity_class
-import unwrapPhase_class
+import ta2_hrr_2019.Interferometry_extraction.CUnderwood_Functions3 as func
+from ta2_hrr_2019.Interferometry_extraction import loadDataToNumpy_class, rotateArray, backgroundRemover_class, createRefenceFromImage_class, createPhase_class,createDensity_class, unwrapPhase_class
 
 
 class Interferometry():

@@ -19,7 +19,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 
 # Load my module of functions
-import CUnderwood_Functions3 as func
+import ta2_hrr_2019.Interferometry_extraction.CUnderwood_Functions3 as func
 
 import unittest
 import loadDataToNumpy_class

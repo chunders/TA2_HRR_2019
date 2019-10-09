@@ -21,11 +21,11 @@ import matplotlib.pyplot as plt
 
 from scipy.optimize import curve_fit
 from scipy.signal import find_peaks 
-import rotateArray
-from fourier_mask_class import fourier_filter_for_mask
+from ta2_hrr_2019.Interferometry_extraction import rotateArray
+from ta2_hrr_2019.Interferometry_extraction.fourier_mask_class import fourier_filter_for_mask
 
 # Load my module of functions
-import CUnderwood_Functions3 as func
+import ta2_hrr_2019.Interferometry_extraction.CUnderwood_Functions3 as func
 
 class unwrapPhase():
     def __init__(self):

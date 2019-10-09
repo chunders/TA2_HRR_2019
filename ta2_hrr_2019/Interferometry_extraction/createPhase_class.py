@@ -20,9 +20,7 @@ mpl.rcParams['figure.figsize'] = [8.0,6.0]
 import matplotlib.pyplot as plt
 
 # Load my module of functions
-import sys
-sys.path.insert(0, '/Users/chrisunderwood/Documents/Python/')
-import CUnderwood_Functions3 as func
+import ta2_hrr_2019.Interferometry_extraction.CUnderwood_Functions3 as func
 
 class phaseShift():
     

@@ -17,7 +17,7 @@ mpl.rcParams['figure.figsize'] = [6.0,4.0]
 import matplotlib.pyplot as plt
 import abel
 # Load my module of functions
-import CUnderwood_Functions3 as func
+import ta2_hrr_2019.Interferometry_extraction.CUnderwood_Functions3 as func
 
 xsize = 20
 ysize = 30

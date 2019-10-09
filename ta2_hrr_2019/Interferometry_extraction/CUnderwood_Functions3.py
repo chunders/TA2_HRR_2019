@@ -31,6 +31,10 @@ def displayCurvefitResults(popt, pcov):
     print("Fit Results")
     for p, e in zip(popt, errors):
         print ( "{}\t{}\t{:2.3f}%".format(p, e,e/p))
+        
+def pcov_to_perr(pcov):
+    errors = np.sqrt(np.diag(pcov))
+    return errors
     
 
 def legendToLeft(loc = 'center left', bbox_to_anchor=(1,.5), title = '', ncol = 1, ax = None):
@@ -264,7 +268,7 @@ def Load3CurveVisitOutput(fileName, arrOut = 0):
 
 def errorbar(x, y, xerr=0, yerr=0, color = None, label = '',  
              marker='o', linestyle='None',  ax = None,
-                        capSize = 5, capWidth = 2):
+                        capSize = 5, capWidth = 2, plot_line = True):
     ax = ax if ax is not None else plt.gca()
     
     if color is None:
@@ -275,6 +279,8 @@ def errorbar(x, y, xerr=0, yerr=0, color = None, label = '',
              label = label,
              color = color, 
              capsize=capSize)
+    if plot_line:
+        ax.plot(x, y, color = color)
     for cap in caps:
         cap.set_markeredgewidth(capWidth)
         
@@ -414,3 +420,32 @@ def pcolormesh_with_lineouts(X, Y, image, fitlerSize = 3, CropY=None,
     ax = [ax1, ax2, ax3, cax4]
     return ax, np.c_[X, sumX], np.c_[Y, sumY] 
             
+
+def lin(x, *params):
+    m = params[0]
+    c = params[1]
+    return m*x + c
+
+def gaus(x, *params):
+    #Gaussian function
+    A = params[0]
+    x0 = params[1]
+    w = params[2]
+    c = params[3]
+    return A*np.exp(- 0.5 * ((x-x0)/w)**2) + c
+
+
+
+def add_one_more_step_to_axis(arr):
+    """ Extend a list by one step.
+    This is useful for the pcolormesh plots
+    """
+    if len(arr) > 1:
+        stepSize = arr[-1] - arr[-2]
+        new_val = arr[-1] + stepSize
+    else:
+        new_val = arr[0] + 1
+    if type(arr) is not list:
+        	arr = arr.tolist()
+    arr.append(new_val)
+    return arr
